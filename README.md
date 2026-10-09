@@ -12,18 +12,22 @@ pnpm check
 pnpm test
 ```
 
-## Despliegue manual actual
+## Auto-deploy
 
-Mergear una PR **no cambia producción**. Tras aprobación y merge:
+Cada push a `main` (incluidos merges) corre chequeo de sintaxis, 10 tests y dry-run de Wrangler. Una PR solo valida: no usa el token ni publica. El deploy usa `CLOUDFLARE_API_TOKEN` guardado como secret de GitHub, nunca en archivos.
 
-1. Leer `proxy.js` de main, revisar el diff y confirmar que es la versión aprobada.
-2. En Cloudflare Dashboard, cuenta y zona `lucasramos.uy`, Workers & Pages → Worker `proxy` → Edit code.
-3. Guardar una copia de la versión live antes de editar; comparar con el source esperado. Si difiere, detenerse y reconciliar, no sobreescribir cambios ajenos.
-4. Reemplazar el código del Worker con `proxy.js`, revisar preview y publicar mediante Deploy. No cambiar rutas de la zona, secretos ni otros Workers.
-5. Verificar dominio real: ruta nueva, assets/JSON, ruta sin barra, queries, 404 y regresión root/Normativa/Profe. Registrar versión de Cloudflare y commit aplicado.
-6. Si falla, restaurar la versión anterior desde Versions/Rollback y verificar otra vez.
+`wrangler.toml` conserva la configuración live leída el 9 de octubre de 2026: Worker `proxy`, fecha `2026-09-23`, sin flags, bindings ni cron, observabilidad, workers.dev activo y previews desactivados. Declara únicamente las tres rutas de este Worker, no las 30 de toda la zona. `keep_vars` conserva variables agregadas en el dashboard, pero no protege otros tipos de binding: si se agrega alguno hay que reconciliar el config antes del deploy.
 
-No hay token ni credenciales en este repo. La integración con Cloudflare permanece manual; no se promete auto-deploy. Un futuro auto-deploy requiere decisión y PR aparte.
+El guard lee settings/rutas antes y después. Si el estado remoto no coincide con el contrato, falla antes de publicar. Compara todas las rutas de zona para detectar cambios de otros Workers durante el deploy. Requiere permisos de lectura de Workers y rutas de la zona además de los permisos de deploy; si el token no los tiene, se detiene sin deploy. No hay fallback que saltee el guard.
+
+La primera publicación agrega `/intemperie/` al source live anterior. Después del deploy comprobar `/`, `/normativa/`, `/profe/`, `/intemperie/`, sus assets y `weather.json`. Un Action verde no reemplaza esa comprobación visual.
+
+### Rollback
+
+1. Pausar el workflow antes de revertir en Cloudflare para que otro push no deshaga el rollback.
+2. Dashboard → `proxy` → Deployments: restaurar la versión anterior. Antes de cada deploy, registrar el ID de la versión activa. La versión anterior a esta migración empieza con `13dc333d`.
+3. Verificar rutas y sitios. El rollback del código no repara cambios de rutas: el guard detecta discrepancias para inspeccionarlas, nunca reasigna rutas de otros Workers.
+4. Revertir la PR que falló en GitHub o reconciliar config, revisar el diff y recién entonces reactivar el workflow. No repetir un deploy fallido con un config adivinado.
 
 ## Migración
 
