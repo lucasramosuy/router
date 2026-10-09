@@ -1,0 +1,129 @@
+// Router for lucasramos.uy: /<proyecto>/* -> upstream. Everything else goes to Cloudflare Pages (repo www).
+const ROOT_ORIGIN = 'https://www-7r1.pages.dev';
+
+const ROUTES = {
+  '/intemperie': 'https://lucasramosuy.github.io/intemperie',
+  '/simuladores': 'https://simuladores.lucas-space.workers.dev/simuladores',
+      '/2048': 'https://2048-5iz.pages.dev',
+      '/normativa/leydle': 'https://leydle.pages.dev',
+          '/snake': 'https://snake-czg.pages.dev',
+          '/normativa': 'https://lucasramosuy.github.io/normativa',
+  '/profe': 'https://lucasramosuy.github.io/profe',
+  '/amargometro': 'https://lucasramosuy.github.io/amargometro',
+'/edicion': 'https://lucasramosuy.github.io/edicion',
+'/rebote': 'https://rebote-a9c.pages.dev',
+};
+
+// First-party ingest for Normativa, so adblockers don't drop errors and analytics.
+// Sentry tunnel: https://docs.sentry.io/platforms/javascript/troubleshooting/#using-the-tunnel-option
+// PostHog reverse proxy: https://posthog.com/docs/advanced/proxy/cloudflare
+const INGEST = '/normativa/_i';
+const SENTRY_HOST = 'o4510988275482624.ingest.us.sentry.io';
+const SENTRY_PROJECTS = ['4512132646371328'];
+const POSTHOG_API = 'us.i.posthog.com';
+const POSTHOG_ASSETS = 'us-assets.i.posthog.com';
+
+async function sentryTunnel(request) {
+  if (request.method !== 'POST') return new Response('Method not allowed', { status: 405 });
+  const body = await request.arrayBuffer();
+  const firstLine = new TextDecoder().decode(body.slice(0, 4096)).split('\n')[0];
+  let dsn;
+  try { dsn = new URL(JSON.parse(firstLine).dsn); } catch { return new Response('Bad envelope', { status: 400 }); }
+  const project = dsn.pathname.replace(/^\//, '');
+  if (dsn.hostname !== SENTRY_HOST || !SENTRY_PROJECTS.includes(project)) return new Response('Unknown DSN', { status: 400 });
+  return fetch(`https://${SENTRY_HOST}/api/${project}/envelope/`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-sentry-envelope' },
+    body,
+  });
+}
+
+async function posthogProxy(request, path, ctx) {
+  const url = new URL(request.url);
+  if (path.startsWith('/static/') || path.startsWith('/array/')) {
+    let res = await caches.default.match(request);
+    if (!res) {
+      res = await fetch(`https://${POSTHOG_ASSETS}${path}${url.search}`);
+      ctx.waitUntil(caches.default.put(request, res.clone()));
+    }
+    return res;
+  }
+  const headers = new Headers(request.headers);
+  headers.delete('cookie');
+  headers.delete('authorization');
+  headers.set('X-Forwarded-For', request.headers.get('CF-Connecting-IP') || '');
+  return fetch(`https://${POSTHOG_API}${path}${url.search}`, {
+    method: request.method,
+    headers,
+    body: request.method !== 'GET' && request.method !== 'HEAD' ? await request.arrayBuffer() : null,
+    redirect: request.redirect,
+  });
+}
+
+// Proyectos nuevos: si el root (Pages "www") no tiene la ruta (404), se prueba https://p-<nombre>.pages.dev.
+// Solo el primer segmento ([a-z0-9-], hasta 39), solo GET/HEAD. Si ese proyecto no existe o responde 404, vale el 404 del root.
+async function fetchWithFallback(rootReq) {
+  const rootRes = await fetch(rootReq);
+  const url = new URL(rootReq.url);
+  const m = url.pathname.match(/^\/([a-z0-9][a-z0-9-]{0,38})(\/.*)?$/);
+  if (rootRes.status !== 404 || !m || (rootReq.method !== 'GET' && rootReq.method !== 'HEAD')) return rootRes;
+  const upstream = 'https://p-' + m[1] + '.pages.dev';
+  let res;
+  try {
+    res = await fetch(new Request(upstream + (m[2] || '/') + url.search, rootReq), { redirect: 'manual' });
+  } catch (e) {
+    return rootRes;
+  }
+  if (res.status === 404 || res.status === 530) return rootRes;
+  if (!m[2]) return new Response(null, { status: 301, headers: { location: '/' + m[1] + '/' + url.search } });
+  const out = new Response(res.body, res);
+  const loc = out.headers.get('location');
+  if (loc) {
+    const l = new URL(loc, upstream);
+    if (l.origin === upstream) out.headers.set('location', l.pathname + l.search);
+  }
+  return out;
+}
+
+export default {
+  async fetch(request, env, ctx) {
+    const url = new URL(request.url);
+    if (url.pathname === `${INGEST}/s`) return sentryTunnel(request);
+    if (url.pathname.startsWith(`${INGEST}/p/`)) return posthogProxy(request, url.pathname.slice(`${INGEST}/p`.length), ctx);
+
+    for (const [prefix, upstream] of Object.entries(ROUTES)) {
+      if (url.pathname === prefix) {
+        return Response.redirect(`${url.origin}${prefix}/${url.search}`, 301);
+      }
+      if (url.pathname.startsWith(prefix + '/')) {
+        const target = new URL(upstream + url.pathname.slice(prefix.length) + url.search);
+        const upstreamReq = new Request(target, request);
+        upstreamReq.headers.delete('cookie');
+        const res = await fetch(upstreamReq, { redirect: 'manual' });
+        const out = new Response(res.body, res);
+        // Archivos con hash en el nombre (/normativa/_astro/*): nunca cambian, el navegador los guarda un año.
+        if (res.ok && url.pathname.startsWith(prefix + '/_astro/')) {
+          out.headers.set('Cache-Control', 'public, max-age=31536000, immutable');
+        }
+        // Fuentes de Profe (nombre fijo): un mes.
+        if (res.ok && url.pathname.startsWith('/profe/fonts/')) {
+          out.headers.set('Cache-Control', 'public, max-age=2592000');
+        }
+        const loc = out.headers.get('location');
+        if (loc) {
+          const up = new URL(upstream);
+          const l = new URL(loc, target);
+          if (l.host === up.host && l.pathname.startsWith(up.pathname)) {
+            out.headers.set('location', url.origin + prefix + l.pathname.slice(up.pathname.length) + l.search);
+          }
+        }
+        return out;
+      }
+    }
+    // Root and everything else: Cloudflare Pages (repo www, project 'www').
+    const target = new URL(url.pathname + url.search, ROOT_ORIGIN);
+    const upstreamReq = new Request(target, request);
+    upstreamReq.headers.delete('cookie');
+    return fetchWithFallback(upstreamReq);
+  },
+};
