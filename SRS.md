@@ -33,3 +33,14 @@ Byte-identical del source migrado, tests Node verdes y chequeo de sintaxis. Read
 ## Privacidad
 
 Repo público porque el source original es público. No subir credenciales, tokens, cookies ni exportaciones del dashboard. Mantener permisos y límites del Worker existentes. La migración no amplía audiencia de información privada.
+
+
+## Fallback de 404 vacío para navegación pública
+
+Una navegación GET/HEAD que acepte text/html y pertenezca a la allowlist pública del router puede recibir `/404.html` del origen www, manteniendo HTTP 404. Solo reemplaza respuesta 404 vacía o con whitespace; cualquier página propia, incluso HTML mínimo, se conserva. Inspección de stream clonado limitada a 4096 bytes y espera de 500ms por lectura; no consume el original. HEAD requiere Content-Length 0 explícito.
+
+No aplica a API, ingest, assets, fuentes, rutas con extensiones o escapes de porcentaje, rutas privadas ni métodos de escritura. La allowlist se amplía expresamente al incorporar proyectos públicos; no se deduce privacidad de un nombre desconocido. Nunca lleva cookies ni datos de la request a www. El HTML de fallback es no-store; no copia caché, redirects ni headers del upstream. Si www falla, no es HTML o está vacío, conserva la respuesta inicial.
+
+`/links` y `/links/*` tienen Worker propio y no atraviesan proxy: ese caso necesita su implementación aparte. La inclusión de links en la allowlist NO modifica ninguna route de Cloudflare. Se preservan íntegros los 404 propios de Profe y Normativa. No se cambian wrangler.toml, guard, rutas ni settings.
+
+Aceptación: tests aislados para vacío/whitespace, página propia, JSON, assets, API, rutas privadas, método POST, HEAD, contenido grande y fallo del fallback. Playtest local del handler contra upstreams reales y capturas desktop/390 del resultado; PR valida sin deploy y merge a main publica automáticamente.
