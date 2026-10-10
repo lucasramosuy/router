@@ -60,6 +60,68 @@ async function posthogProxy(request, path, ctx) {
   });
 }
 
+// Public document navigation only. Never turn private routes, API or missing assets into HTML.
+const PUBLIC_404_PATHS = new Set(['links', 'intemperie', 'simuladores', '2048', 'snake',
+  'normativa', 'profe', 'amargometro', 'edicion', 'rebote']);
+function isPublicNavigation(request) {
+  if (request.method !== 'GET' && request.method !== 'HEAD') return false;
+  const path = new URL(request.url).pathname;
+  const parts = path.split('/').filter(Boolean);
+  if (!PUBLIC_404_PATHS.has(parts[0])) return false;
+  if (parts.some(part => /^(api|_i|_astro|assets|fonts|admin|cms|panel|login|auth|oauth|callback)$/i.test(part))) return false;
+  if (parts.some(part => /[.%]/.test(part))) return false;
+  const dest = request.headers.get('Sec-Fetch-Dest');
+  if (dest && dest !== 'document' && dest !== 'iframe') return false;
+  return /text\/html/i.test(request.headers.get('Accept') || '');
+}
+async function hasEmptyErrorPage(response) {
+  const type = response.headers.get('Content-Type') || '';
+  if (type && !/^text\/html(?:;|$)/i.test(type)) return false;
+  if (!response.body) return true;
+  if (response.headers.get('Content-Length') === '0') return true;
+  // Bounded inspection of a clone; the original stream is never consumed.
+  const reader = response.clone().body.getReader();
+  let size = 0, empty = true;
+  try {
+    while (size < 4096) {
+      let timer;
+      const result = await Promise.race([reader.read(), new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('404 inspection timeout')), 500); })]).finally(() => clearTimeout(timer));
+      const { value, done } = result;
+      if (done) return empty;
+      size += value.byteLength;
+      if (/\S/.test(new TextDecoder().decode(value))) { empty = false; break; }
+    }
+    return false;
+  } catch {
+    return false;
+  } finally {
+    // Do not await tee cancellation: it can wait for the untouched original stream.
+    void reader.cancel().catch(() => {});
+  }
+}
+async function public404Fallback(request, response) {
+  if (response.status !== 404 || !isPublicNavigation(request)) return response;
+  // HEAD cannot prove emptiness from its null body. Require explicit zero length.
+  if (request.method === 'HEAD' && response.headers.get('Content-Length') !== '0') return response;
+  if (!(await hasEmptyErrorPage(response))) return response;
+  try {
+    const page = await fetch(new Request(ROOT_ORIGIN + '/404.html', {
+      method: 'GET', headers: { Accept: 'text/html' }, redirect: 'follow'
+    }));
+    if (page.status !== 200 && page.status !== 404) return response;
+    if (!/^text\/html(?:;|$)/i.test(page.headers.get('Content-Type') || '')) return response;
+    const html = await page.text();
+    if (!html.trim()) return response;
+    // Fresh HTML headers, never carry asset cache/CORS/redirect or upstream metadata.
+    const headers = new Headers({ 'Content-Type': 'text/html; charset=utf-8',
+      'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff',
+      'Referrer-Policy': 'strict-origin-when-cross-origin' });
+    return new Response(request.method === 'HEAD' ? null : html, { status: 404, headers });
+  } catch {
+    return response; // Failed fallback preserves the upstream result.
+  }
+}
+
 // Proyectos nuevos: si el root (Pages "www") no tiene la ruta (404), se prueba https://p-<nombre>.pages.dev.
 // Solo el primer segmento ([a-z0-9-], hasta 39), solo GET/HEAD. Si ese proyecto no existe o responde 404, vale el 404 del root.
 async function fetchWithFallback(rootReq) {
@@ -117,13 +179,13 @@ export default {
             out.headers.set('location', url.origin + prefix + l.pathname.slice(up.pathname.length) + l.search);
           }
         }
-        return out;
+        return public404Fallback(request, out);
       }
     }
     // Root and everything else: Cloudflare Pages (repo www, project 'www').
     const target = new URL(url.pathname + url.search, ROOT_ORIGIN);
     const upstreamReq = new Request(target, request);
     upstreamReq.headers.delete('cookie');
-    return fetchWithFallback(upstreamReq);
+    return public404Fallback(request, await fetchWithFallback(upstreamReq));
   },
 };
