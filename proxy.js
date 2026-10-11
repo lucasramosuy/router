@@ -12,6 +12,7 @@ const ROUTES = {
   '/amargometro': 'https://lucasramosuy.github.io/amargometro',
 '/edicion': 'https://lucasramosuy.github.io/edicion',
 '/rebote': 'https://rebote-a9c.pages.dev',
+  '/mes': 'https://lucasramosuy.github.io/mes',
 };
 
 // First-party ingest for Normativa, so adblockers don't drop errors and analytics.
@@ -62,7 +63,7 @@ async function posthogProxy(request, path, ctx) {
 
 // Public document navigation only. Never turn private routes, API or missing assets into HTML.
 const PUBLIC_404_PATHS = new Set(['links', 'intemperie', 'simuladores', '2048', 'snake',
-  'normativa', 'profe', 'amargometro', 'edicion', 'rebote']);
+  'normativa', 'profe', 'amargometro', 'edicion', 'rebote', 'mes']);
 function isPublicNavigation(request) {
   if (request.method !== 'GET' && request.method !== 'HEAD') return false;
   const path = new URL(request.url).pathname;
