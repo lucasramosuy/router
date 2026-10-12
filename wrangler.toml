@@ -13,11 +13,17 @@ logpush = false
 send_metrics = false
 tail_consumers = []
 
-# Only these three routes belong to proxy. Never copy all zone routes here.
+# Only these routes belong to proxy. Never copy all zone routes here.
 routes = [
-  { pattern = "lucasramos.uy/*", zone_id = "1b45195369f2fa2fd6993ff365431d3c" },
+  { pattern = "lucasramos.uy/2048*", zone_id = "1b45195369f2fa2fd6993ff365431d3c" },
+  { pattern = "lucasramos.uy/amargometro*", zone_id = "1b45195369f2fa2fd6993ff365431d3c" },
+  { pattern = "lucasramos.uy/edicion*", zone_id = "1b45195369f2fa2fd6993ff365431d3c" },
+  { pattern = "lucasramos.uy/intemperie*", zone_id = "1b45195369f2fa2fd6993ff365431d3c" },
   { pattern = "lucasramos.uy/normativa*", zone_id = "1b45195369f2fa2fd6993ff365431d3c" },
-  { pattern = "lucasramos.uy/profe*", zone_id = "1b45195369f2fa2fd6993ff365431d3c" }
+  { pattern = "lucasramos.uy/profe*", zone_id = "1b45195369f2fa2fd6993ff365431d3c" },
+  { pattern = "lucasramos.uy/rebote*", zone_id = "1b45195369f2fa2fd6993ff365431d3c" },
+  { pattern = "lucasramos.uy/simuladores*", zone_id = "1b45195369f2fa2fd6993ff365431d3c" },
+  { pattern = "lucasramos.uy/snake*", zone_id = "1b45195369f2fa2fd6993ff365431d3c" }
 ]
 
 [placement]
