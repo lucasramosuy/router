@@ -23,7 +23,8 @@ routes = [
   { pattern = "lucasramos.uy/profe*", zone_id = "1b45195369f2fa2fd6993ff365431d3c" },
   { pattern = "lucasramos.uy/rebote*", zone_id = "1b45195369f2fa2fd6993ff365431d3c" },
   { pattern = "lucasramos.uy/simuladores*", zone_id = "1b45195369f2fa2fd6993ff365431d3c" },
-  { pattern = "lucasramos.uy/snake*", zone_id = "1b45195369f2fa2fd6993ff365431d3c" }
+  { pattern = "lucasramos.uy/snake*", zone_id = "1b45195369f2fa2fd6993ff365431d3c" },
+  { pattern = "lucasramos.uy/mes*", zone_id = "1b45195369f2fa2fd6993ff365431d3c" }
 ]
 
 [placement]
