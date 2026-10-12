@@ -16,7 +16,7 @@ pnpm test
 
 Cada push a `main` (incluidos merges) corre chequeo de sintaxis, 10 tests y dry-run de Wrangler. Una PR solo valida: no usa el token ni publica. El deploy usa `CLOUDFLARE_API_TOKEN` guardado como secret de GitHub, nunca en archivos.
 
-`wrangler.toml` conserva la configuración live leída el 9 de octubre de 2026: Worker `proxy`, fecha `2026-09-23`, sin flags, bindings ni cron, observabilidad, workers.dev activo y previews desactivados. Declara únicamente las tres rutas de este Worker, no las 30 de toda la zona. `keep_vars` conserva variables agregadas en el dashboard, pero no protege otros tipos de binding: si se agrega alguno hay que reconciliar el config antes del deploy.
+`wrangler.toml` conserva la configuración live leída el 9 de octubre de 2026: Worker `proxy`, fecha `2026-09-23`, sin flags, bindings ni cron, observabilidad, workers.dev activo y previews desactivados. Declara únicamente las nueve rutas explícitas de este Worker (sin la ancha `/*`), no todas las de la zona. Si se agrega o quita una ruta, `wrangler.toml` y `expectedRoutes` de `deploy-guard.mjs` cambian juntos. `keep_vars` conserva variables agregadas en el dashboard, pero no protege otros tipos de binding: si se agrega alguno hay que reconciliar el config antes del deploy.
 
 El guard lee settings/rutas antes y después. Si el estado remoto no coincide con el contrato, falla antes de publicar. Compara todas las rutas de zona para detectar cambios de otros Workers durante el deploy. Requiere permisos de lectura de Workers y rutas de la zona además de los permisos de deploy; si el token no los tiene, se detiene sin deploy. No hay fallback que saltee el guard.
 
