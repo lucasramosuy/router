@@ -12,5 +12,5 @@ test('route normalization retains other Workers and detects changed assignments'
  const a=[{pattern:'lucasramos.uy/profe*',script:'proxy'},{pattern:'lucasramos.uy/qr*',script:'qr-studio'}];
  assert.deepEqual(normalizeRoutes(a),normalizeRoutes([...a].reverse()));
  assert.notDeepEqual(normalizeRoutes(a),normalizeRoutes([a[0],{...a[1],script:'proxy'}]));
- assert.equal(expectedRoutes.length,3);
+ assert.equal(expectedRoutes.length,9);
 });
