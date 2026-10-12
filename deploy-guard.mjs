@@ -3,7 +3,7 @@ import {readFile, writeFile} from 'node:fs/promises';
 const account = 'f66373a49d42210eded48739ed762afa';
 const zone = '1b45195369f2fa2fd6993ff365431d3c';
 const base = `https://api.cloudflare.com/client/v4`;
-export const expectedRoutes = ['lucasramos.uy/*', 'lucasramos.uy/normativa*', 'lucasramos.uy/profe*'];
+export const expectedRoutes = ['lucasramos.uy/2048*', 'lucasramos.uy/amargometro*', 'lucasramos.uy/edicion*', 'lucasramos.uy/intemperie*', 'lucasramos.uy/normativa*', 'lucasramos.uy/profe*', 'lucasramos.uy/rebote*', 'lucasramos.uy/simuladores*', 'lucasramos.uy/snake*'];
 export function normalizeRoutes(routes) {
   return routes.map(({pattern, script, request_limit_fail_open}) => ({pattern, script:script ?? null, request_limit_fail_open:request_limit_fail_open ?? false})).sort((a,b)=>a.pattern.localeCompare(b.pattern));
 }
