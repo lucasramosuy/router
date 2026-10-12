@@ -3,7 +3,9 @@ import {readFile, writeFile} from 'node:fs/promises';
 const account = 'f66373a49d42210eded48739ed762afa';
 const zone = '1b45195369f2fa2fd6993ff365431d3c';
 const base = `https://api.cloudflare.com/client/v4`;
-export const expectedRoutes = ['lucasramos.uy/*', 'lucasramos.uy/normativa*', 'lucasramos.uy/profe*'];
+// Rutas live antes de agregar /mes*; y rutas finales tras el deploy.
+export const baselineRoutes = ['lucasramos.uy/2048*', 'lucasramos.uy/amargometro*', 'lucasramos.uy/edicion*', 'lucasramos.uy/intemperie*', 'lucasramos.uy/normativa*', 'lucasramos.uy/profe*', 'lucasramos.uy/rebote*', 'lucasramos.uy/simuladores*', 'lucasramos.uy/snake*'];
+export const expectedRoutes = [...baselineRoutes, 'lucasramos.uy/mes*'];
 export function normalizeRoutes(routes) {
   return routes.map(({pattern, script, request_limit_fail_open}) => ({pattern, script:script ?? null, request_limit_fail_open:request_limit_fail_open ?? false})).sort((a,b)=>a.pattern.localeCompare(b.pattern));
 }
@@ -29,8 +31,13 @@ export async function run(mode) {
   const [settings,sub,schedules,routes]=await Promise.all([get(`${worker}/settings`),get(`${worker}/subdomain`),get(`${worker}/schedules`),get(`/zones/${zone}/workers/routes`)]);
   assertSettings(settings,sub,schedules);
   const own=routes.filter(r=>r.script==='proxy').map(r=>r.pattern).sort();
-  if(JSON.stringify(own)!==JSON.stringify([...expectedRoutes].sort())) throw new Error('Proxy routes changed. Stop and reconcile; do not overwrite dashboard changes.');
-  const normalized=normalizeRoutes(routes);
+  const key=a=>JSON.stringify([...a].sort());
+  const allowed=mode==='pre' ? [key(baselineRoutes), key(expectedRoutes)] : [key(expectedRoutes)];
+  if(!allowed.includes(key(own))) throw new Error('Proxy routes changed. Stop and reconcile; do not overwrite dashboard changes.');
+  const mes=routes.find(r=>r.pattern==='lucasramos.uy/mes*' && r.script!=='proxy');
+  if(mes) throw new Error('lucasramos.uy/mes* belongs to another Worker. Stop and reconcile.');
+  // Solo se comparan las rutas de otros Workers: las del proxy cambian a propósito (mes*).
+  const normalized=normalizeRoutes(routes.filter(r=>r.script!=='proxy'));
   const file=`${process.env.RUNNER_TEMP ?? '/tmp'}/router-route-baseline.json`;
   if(mode==='pre') await writeFile(file,JSON.stringify(normalized));
   else if(JSON.stringify(normalized)!==await readFile(file,'utf8')) throw new Error('Zone routes changed during deployment. Inspect and restore only this deployment if needed.');
