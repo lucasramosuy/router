@@ -173,8 +173,11 @@ export default {
         const target = new URL(upstream + url.pathname.slice(prefix.length) + url.search);
         const upstreamReq = new Request(target, request);
         upstreamReq.headers.delete('cookie');
-        const res = await fetch(upstreamReq, { redirect: 'manual', ...edgeCache(prefix, url.pathname, request.method) });
+        const edge = edgeCache(prefix, url.pathname, request.method);
+        const res = await fetch(upstreamReq, { redirect: 'manual', ...edge });
         const out = new Response(res.body, res);
+        // cacheEverything hace que Cloudflare le diga al navegador max-age=14400 (4 h): se fija el mismo TTL corto para el navegador.
+        if (edge.cf && res.ok) out.headers.set('Cache-Control', `public, max-age=${edge.cf.cacheTtl}`);
         // Archivos con hash en el nombre (/normativa/_astro/*): nunca cambian, el navegador los guarda un año.
         if (res.ok && url.pathname.startsWith(prefix + '/_astro/')) {
           out.headers.set('Cache-Control', 'public, max-age=31536000, immutable');
