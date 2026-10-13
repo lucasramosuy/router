@@ -148,6 +148,17 @@ async function fetchWithFallback(rootReq) {
   return out;
 }
 
+// Cache en el edge de Cloudflare para /profe (GitHub Pages no manda nada que Cloudflare cachee solo, por eso el HTML salía DYNAMIC).
+// TTL corto en HTML/JSON porque el sitio se republica en ~1 minuto; más largo en archivos que casi no cambian.
+// Solo GET/HEAD y solo respuestas 2xx: errores y redirecciones no se guardan.
+function edgeCache(prefix, pathname, method) {
+  if (prefix !== '/profe' || (method !== 'GET' && method !== 'HEAD')) return {};
+  if (pathname.startsWith('/profe/fotos/api/')) return {};
+  const largo = /^\/profe\/(fonts|archivos|videos)\//.test(pathname);
+  const ttl = largo ? 3600 : 60;
+  return { cf: { cacheEverything: true, cacheTtl: ttl, cacheTtlByStatus: { '200-299': ttl, '300-599': -1 } } };
+}
+
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
@@ -162,7 +173,7 @@ export default {
         const target = new URL(upstream + url.pathname.slice(prefix.length) + url.search);
         const upstreamReq = new Request(target, request);
         upstreamReq.headers.delete('cookie');
-        const res = await fetch(upstreamReq, { redirect: 'manual' });
+        const res = await fetch(upstreamReq, { redirect: 'manual', ...edgeCache(prefix, url.pathname, request.method) });
         const out = new Response(res.body, res);
         // Archivos con hash en el nombre (/normativa/_astro/*): nunca cambian, el navegador los guarda un año.
         if (res.ok && url.pathname.startsWith(prefix + '/_astro/')) {
