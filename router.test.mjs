@@ -63,3 +63,29 @@ test('public empty 404 fallback is bounded, scoped and preserves custom pages', 
     const failed=await worker.fetch(new Request('https://lucasramos.uy/links/missing',{headers:{Accept:'text/html'}}));assert.equal(await failed.text(),'');
   } finally {globalThis.fetch=previous;}
 });
+
+test('profe: cache en el edge solo para GET/HEAD 2xx, con TTL corto en HTML y largo en archivos', async () => {
+  const previous = globalThis.fetch;
+  const inits = [];
+  globalThis.fetch = async (r, init) => { inits.push({ url: new Request(r).url, init }); return new Response('ok'); };
+  try {
+    await worker.fetch(new Request('https://lucasramos.uy/profe/'), {}, {});
+    await worker.fetch(new Request('https://lucasramos.uy/profe/blog/'), {}, {});
+    await worker.fetch(new Request('https://lucasramos.uy/profe/fonts/x.woff2'), {}, {});
+    await worker.fetch(new Request('https://lucasramos.uy/profe/archivos/a.pdf'), {}, {});
+    await worker.fetch(new Request('https://lucasramos.uy/profe/', { method: 'POST', body: 'x' }), {}, {});
+    await worker.fetch(new Request('https://lucasramos.uy/profe/fotos/api/buscar'), {}, {});
+    await worker.fetch(new Request('https://lucasramos.uy/normativa/'), {}, {});
+    const [home, blog, font, pdf, post, api, otro] = inits;
+    assert.equal(home.init.cf.cacheEverything, true);
+    assert.equal(home.init.cf.cacheTtl, 60);
+    assert.equal(blog.init.cf.cacheTtl, 60);
+    assert.deepEqual(home.init.cf.cacheTtlByStatus, { '200-299': 60, '300-599': -1 });
+    assert.equal(font.init.cf.cacheTtl, 3600);
+    assert.equal(pdf.init.cf.cacheTtl, 3600);
+    assert.equal(post.init.cf, undefined);
+    assert.equal(api.init.cf, undefined);
+    assert.equal(otro.init.cf, undefined);
+    assert.equal(home.init.redirect, 'manual');
+  } finally { globalThis.fetch = previous; }
+});
