@@ -89,3 +89,16 @@ test('profe: cache en el edge solo para GET/HEAD 2xx, con TTL corto en HTML y la
     assert.equal(home.init.redirect, 'manual');
   } finally { globalThis.fetch = previous; }
 });
+
+test('profe: el navegador recibe el mismo TTL corto que el edge, no el de 4 horas de cacheEverything', async () => {
+  const previous = globalThis.fetch;
+  globalThis.fetch = async () => new Response('ok', { headers: { 'Cache-Control': 'max-age=14400' } });
+  try {
+    const html = await worker.fetch(new Request('https://lucasramos.uy/profe/'), {}, {});
+    assert.equal(html.headers.get('Cache-Control'), 'public, max-age=60');
+    const pdf = await worker.fetch(new Request('https://lucasramos.uy/profe/archivos/a.pdf'), {}, {});
+    assert.equal(pdf.headers.get('Cache-Control'), 'public, max-age=3600');
+    const otro = await worker.fetch(new Request('https://lucasramos.uy/normativa/'), {}, {});
+    assert.equal(otro.headers.get('Cache-Control'), 'max-age=14400');
+  } finally { globalThis.fetch = previous; }
+});
