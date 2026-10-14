@@ -12,9 +12,9 @@ test('route normalization retains other Workers and detects changed assignments'
  const a=[{pattern:'lucasramos.uy/profe*',script:'proxy'},{pattern:'lucasramos.uy/qr*',script:'qr-studio'}];
  assert.deepEqual(normalizeRoutes(a),normalizeRoutes([...a].reverse()));
  assert.notDeepEqual(normalizeRoutes(a),normalizeRoutes([a[0],{...a[1],script:'proxy'}]));
- assert.equal(expectedRoutes.length,10);
- assert.ok(expectedRoutes.includes('lucasramos.uy/mes*'));
- assert.equal(baselineRoutes.length,9);
+ assert.equal(expectedRoutes.length,11);
+ assert.ok(expectedRoutes.includes('lucasramos.uy/tinta*'));
+ assert.equal(baselineRoutes.length,10);
 });
 
 async function withCloudflare(proxyPatterns, others, fn){
@@ -24,14 +24,14 @@ async function withCloudflare(proxyPatterns, others, fn){
  process.env.CLOUDFLARE_API_TOKEN='x';
  try { await fn(); } finally { globalThis.fetch=real; }
 }
-test('pre acepta el estado anterior y el final; post exige /mes*',async()=>{
+test('pre acepta el estado anterior y el final; post exige /tinta*',async()=>{
  const others=[{pattern:'lucasramos.uy/links',script:'links'}];
  await withCloudflare(baselineRoutes,others,()=>run('pre'));
  await withCloudflare(expectedRoutes,others,()=>run('pre'));
  await withCloudflare(expectedRoutes,others,()=>run('post'));
  await assert.rejects(withCloudflare(baselineRoutes,others,()=>run('post')),/Proxy routes changed/);
 });
-test('rutas desconocidas o /mes* de otro Worker detienen el deploy',async()=>{
+test('rutas desconocidas o /tinta* de otro Worker detienen el deploy',async()=>{
  await assert.rejects(withCloudflare([...baselineRoutes,'lucasramos.uy/*'],[],()=>run('pre')),/Proxy routes changed/);
- await assert.rejects(withCloudflare(baselineRoutes,[{pattern:'lucasramos.uy/mes*',script:'otro'}],()=>run('pre')),/another Worker/);
+ await assert.rejects(withCloudflare(baselineRoutes,[{pattern:'lucasramos.uy/tinta*',script:'otro'}],()=>run('pre')),/another Worker/);
 });
