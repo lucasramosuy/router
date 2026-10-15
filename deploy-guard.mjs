@@ -3,9 +3,9 @@ import {readFile, writeFile} from 'node:fs/promises';
 const account = 'f66373a49d42210eded48739ed762afa';
 const zone = '1b45195369f2fa2fd6993ff365431d3c';
 const base = `https://api.cloudflare.com/client/v4`;
-// Rutas live antes de agregar /mes*; y rutas finales tras el deploy.
-export const baselineRoutes = ['lucasramos.uy/2048*', 'lucasramos.uy/amargometro*', 'lucasramos.uy/edicion*', 'lucasramos.uy/intemperie*', 'lucasramos.uy/normativa*', 'lucasramos.uy/profe*', 'lucasramos.uy/rebote*', 'lucasramos.uy/simuladores*', 'lucasramos.uy/snake*'];
-export const expectedRoutes = [...baselineRoutes, 'lucasramos.uy/mes*'];
+// Rutas live antes de agregar /tinta*; y rutas finales tras el deploy.
+export const baselineRoutes = ['lucasramos.uy/2048*', 'lucasramos.uy/amargometro*', 'lucasramos.uy/edicion*', 'lucasramos.uy/intemperie*', 'lucasramos.uy/normativa*', 'lucasramos.uy/profe*', 'lucasramos.uy/rebote*', 'lucasramos.uy/simuladores*', 'lucasramos.uy/snake*', 'lucasramos.uy/mes*'];
+export const expectedRoutes = [...baselineRoutes, 'lucasramos.uy/tinta*'];
 export function normalizeRoutes(routes) {
   return routes.map(({pattern, script, request_limit_fail_open}) => ({pattern, script:script ?? null, request_limit_fail_open:request_limit_fail_open ?? false})).sort((a,b)=>a.pattern.localeCompare(b.pattern));
 }
@@ -34,9 +34,9 @@ export async function run(mode) {
   const key=a=>JSON.stringify([...a].sort());
   const allowed=mode==='pre' ? [key(baselineRoutes), key(expectedRoutes)] : [key(expectedRoutes)];
   if(!allowed.includes(key(own))) throw new Error('Proxy routes changed. Stop and reconcile; do not overwrite dashboard changes.');
-  const mes=routes.find(r=>r.pattern==='lucasramos.uy/mes*' && r.script!=='proxy');
-  if(mes) throw new Error('lucasramos.uy/mes* belongs to another Worker. Stop and reconcile.');
-  // Solo se comparan las rutas de otros Workers: las del proxy cambian a propósito (mes*).
+  const tinta=routes.find(r=>r.pattern==='lucasramos.uy/tinta*' && r.script!=='proxy');
+  if(tinta) throw new Error('lucasramos.uy/tinta* belongs to another Worker. Stop and reconcile.');
+  // Solo se comparan las rutas de otros Workers: las del proxy cambian a propósito (tinta*).
   const normalized=normalizeRoutes(routes.filter(r=>r.script!=='proxy'));
   const file=`${process.env.RUNNER_TEMP ?? '/tmp'}/router-route-baseline.json`;
   if(mode==='pre') await writeFile(file,JSON.stringify(normalized));
